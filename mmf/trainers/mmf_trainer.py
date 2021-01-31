@@ -3,6 +3,8 @@ import logging
 
 import omegaconf
 import torch
+from fairscale.nn.data_parallel import ShardedDataParallel
+from fairscale.optim.grad_scaler import ShardedGradScaler
 from mmf.common import typings as mmf_typings
 from mmf.common.dataset_loader import DatasetLoader
 from mmf.common.registry import registry
@@ -40,13 +42,13 @@ class MMFTrainer(
 
     def load(self):
         super().load()
-        self.load_fp16_scaler()
 
         # Callbacks
         self.on_init_start()
 
         # Parallize model
         self.parallelize_model()
+        self.load_fp16_scaler()
 
         # Callbacks
         self.on_init_end()
@@ -108,7 +110,10 @@ class MMFTrainer(
             ), "Using fp16 requires torch version >- 1.6"
             assert self.device != torch.device("cpu"), "fp16 cannot be used on cpu"
 
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.training_config.fp16)
+        if isinstance(self.model, ShardedDataParallel):
+            self.scaler = ShardedGradScaler()
+        else:
+            self.scaler = torch.cuda.amp.GradScaler(enabled=self.training_config.fp16)
 
     def train(self):
         logger.info("===== Model =====")

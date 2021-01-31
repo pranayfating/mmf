@@ -6,6 +6,7 @@ from typing import Any, Dict, Type, Union
 
 import mmf
 import torch
+from fairscale.optim.oss import OSS
 from mmf.common import typings as mmf_typings
 from mmf.common.registry import registry
 from mmf.datasets.processors.processors import Processor
@@ -228,16 +229,6 @@ def build_optimizer(model, config):
     parameters = get_optimizer_parameters(model, config)
 
     if optimizer_config.get("enable_state_sharding", False):
-        # TODO(vedanuj): Remove once OSS is moved to PT upstream
-        try:
-            from fairscale.optim.oss import OSS
-        except ImportError:
-            print(
-                "Optimizer state sharding requires fairscale. "
-                + "Install using pip install fairscale."
-            )
-            raise
-
         assert (
             is_dist_initialized()
         ), "Optimizer state sharding can only be used in distributed mode."

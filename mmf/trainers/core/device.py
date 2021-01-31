@@ -4,6 +4,8 @@ import logging
 from abc import ABC
 
 import torch
+from fairscale.nn.data_parallel import ShardedDataParallel
+from fairscale.optim.oss import OSS
 from mmf.common.registry import registry
 
 
@@ -52,10 +54,13 @@ class TrainerDeviceMixin(ABC):
 
         if "cuda" in str(self.device) and self.distributed:
             registry.register("distributed", True)
-            self.model = torch.nn.parallel.DistributedDataParallel(
-                self.model,
-                device_ids=[self.local_rank],
-                output_device=self.local_rank,
-                check_reduction=True,
-                find_unused_parameters=self.config.training.find_unused_parameters,
-            )
+            if isinstance(self.optimizer, OSS):
+                self.model = ShardedDataParallel(self.model, self.optimizer)
+            else:
+                self.model = torch.nn.parallel.DistributedDataParallel(
+                    self.model,
+                    device_ids=[self.local_rank],
+                    output_device=self.local_rank,
+                    check_reduction=True,
+                    find_unused_parameters=self.config.training.find_unused_parameters,
+                )

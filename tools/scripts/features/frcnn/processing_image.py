@@ -129,6 +129,10 @@ class Preprocess:
             # resize smallest edge
             raw_sizes = torch.tensor([im.shape[:2] for im in images])
             images = self.aug(images)
+
+            # flip rgb to bgr
+            for idx in range(len(images)):
+                images[idx] = torch.flip(images[idx], [0])
             # transpose images and convert to torch tensors
             # images = [torch.as_tensor(i.astype("float32"))
             # .permute(2, 0, 1).to(self.device) for i in images]

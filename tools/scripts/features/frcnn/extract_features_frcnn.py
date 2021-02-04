@@ -6,6 +6,7 @@ import glob
 import os
 
 import numpy as np
+import torch
 
 from modeling_frcnn import GeneralizedRCNN
 from processing_image import Preprocess
@@ -47,10 +48,10 @@ class FeatureExtractor:
         )
         parser.add_argument("--image_dir", type=str, help="Image directory or file")
         parser.add_argument(
-            "--feature_name",
-            type=str,
-            help="The name of the feature to extract",
-            default="fc6",
+            "--feature_index",
+            type=int,
+            help="The index of the feature to extract",
+            default=None,
         )
         parser.add_argument(
             "--exclude_list",
@@ -65,6 +66,7 @@ class FeatureExtractor:
             default=0,
             help="Threshold of detection confidence above which boxes will be selected",
         )
+        # TODO finish background flag
         parser.add_argument(
             "--background",
             action="store_true",
@@ -129,6 +131,65 @@ class FeatureExtractor:
 
         for key in feature_keys:
             single_features[key] = features[key][index]
+
+        confidence = self.args.confidence_threshold
+        feature = self.args.feature_index
+        idx = 0
+        while idx < single_features["obj_ids"].size()[0]:
+            removed = False
+            if (
+                single_features["obj_probs"][idx] < confidence
+                or single_features["attr_probs"][idx] < confidence
+                or (feature and single_features["obj_ids"][idx].item() != feature)
+            ):
+                single_features["obj_ids"] = torch.cat(
+                    [
+                        single_features["obj_ids"][0:idx],
+                        single_features["obj_ids"][idx + 1 :],
+                    ]
+                )
+                single_features["obj_probs"] = torch.cat(
+                    [
+                        single_features["obj_probs"][0:idx],
+                        single_features["obj_probs"][idx + 1 :],
+                    ]
+                )
+                single_features["attr_ids"] = torch.cat(
+                    [
+                        single_features["attr_ids"][0:idx],
+                        single_features["attr_ids"][idx + 1 :],
+                    ]
+                )
+                single_features["attr_probs"] = torch.cat(
+                    [
+                        single_features["attr_probs"][0:idx],
+                        single_features["attr_probs"][idx + 1 :],
+                    ]
+                )
+                single_features["boxes"] = torch.cat(
+                    [
+                        single_features["boxes"][0:idx, :],
+                        single_features["boxes"][idx + 1 :, :],
+                    ]
+                )
+                single_features["preds_per_image"] = (
+                    single_features["preds_per_image"] - 1
+                )
+                single_features["roi_features"] = torch.cat(
+                    [
+                        single_features["roi_features"][0:idx, :],
+                        single_features["roi_features"][idx + 1 :, :],
+                    ]
+                )
+                single_features["normalized_boxes"] = torch.cat(
+                    [
+                        single_features["normalized_boxes"][0:idx, :],
+                        single_features["normalized_boxes"][idx + 1 :, :],
+                    ]
+                )
+                removed = True
+            if not removed:
+                idx += 1
 
         return single_features
 

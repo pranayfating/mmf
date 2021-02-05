@@ -1,9 +1,21 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 
+import io
+import sys
 from typing import Any, List, Optional, Tuple
 
+import cv2
+import numpy as np
+import PIL.Image
 import torch
 import torchvision
+from IPython.display import Image, display
+
+from tools.scripts.features.frcnn.visualizing_image import SingleImageViz
+
+
+# dynamically add visualization script for importing
+sys.path.append("../..")
 
 
 def visualize_images(
@@ -45,3 +57,26 @@ def visualize_images(
 
     plt.axis("off")
     plt.imshow(grid.permute(1, 2, 0))
+
+
+def visualize_frcnn_features(image_path, features_path, objids, attrids):
+    img = cv2.imread(image_path)
+
+    output_dict = np.load(features_path, allow_pickle="TRUE").item()
+
+    frcnn_visualizer = SingleImageViz(img, id2obj=objids, id2attr=attrids)
+    frcnn_visualizer.draw_boxes(
+        output_dict.get("boxes"),
+        output_dict.pop("obj_ids"),
+        output_dict.pop("obj_probs"),
+        output_dict.pop("attr_ids"),
+        output_dict.pop("attr_probs"),
+    )
+
+    buffer = frcnn_visualizer._get_buffer()[:, :, ::-1]
+    array = np.uint8(np.clip(buffer, 0, 255))
+    img = io.BytesIO()
+    fmt = "jpeg"
+    PIL.Image.fromarray(array).save(img, fmt)
+
+    display(Image(data=img.getvalue()))

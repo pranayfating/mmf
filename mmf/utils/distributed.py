@@ -110,6 +110,23 @@ def gather_tensor(tensor):
     return tensor_list
 
 
+def gather_tensor_along_batch(tensor, dim=0):
+    world_size = get_world_size()
+
+    if world_size < 2:
+        return tensor
+
+    with torch.no_grad():
+        tensor_list = []
+
+        for _ in range(world_size):
+            tensor_list.append(torch.zeros_like(tensor))
+
+        dist.all_gather(tensor_list, tensor)
+        tensor_list = torch.cat(tensor_list, dim=dim)
+    return tensor_list
+
+
 def reduce_dict(dictionary):
     world_size = get_world_size()
     if world_size < 2:
@@ -154,12 +171,10 @@ def object_to_byte_tensor(obj, max_size=4094):
     return byte_tensor
 
 
-def byte_tensor_to_object(byte_tensor, max_size=4094):
+def byte_tensor_to_object(byte_tensor):
     """
     Decode PyTorch byte tensors to Python objects
     """
-    assert max_size <= MAX_SIZE_LIMIT
-
     obj_size = byte_tensor[0].item() * 256 + byte_tensor[1].item()
     obj_enc = bytes(byte_tensor[2 : 2 + obj_size].tolist())
     obj = pickle.loads(obj_enc)

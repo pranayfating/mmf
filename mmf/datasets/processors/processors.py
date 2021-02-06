@@ -1493,3 +1493,31 @@ class MultiClassFromFile(BaseProcessor):
         assert class_index != -1, f"{label} is not present in vocab file"
 
         return {"class_index": torch.tensor(class_index, dtype=torch.long)}
+
+
+@registry.register_processor("detr_image")
+class DETRImageProcessor(BaseProcessor):
+    """Process an image in consistent with test-time prediction of DETR
+    by resizing the image short side to `image_size` (while ensuring its
+    long side no larger than `max_size`) and normalizing the image
+    """
+
+    def __init__(self, config, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+
+        self.image_size = config.image_size
+        self.max_size = config.max_size
+
+        import mmf.utils.image_transforms as T
+
+        self.detr_im_transform = T.Compose(
+            [
+                T.RandomResize([config.image_size], max_size=self.max_size),
+                T.ToTensor(),
+                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ]
+        )
+
+    def __call__(self, item):
+        img, _ = self.detr_im_transform(item.convert("RGB"), None)
+        return img
